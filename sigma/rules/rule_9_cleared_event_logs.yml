@@ -1,0 +1,11 @@
+title: Security Event Log Was Cleared
+id: a1b2c3d4-0009-4000-8000-000000000009
+status: experimental
+logsource:
+    product: windows
+    service: security
+detection:
+    selection:
+        event_id: '1102'
+    condition: selection
+level: critical

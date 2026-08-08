@@ -1,0 +1,10 @@
+title: Shadow Copies Deletion via Vssadmin
+id: a1b2c3d4-0005-4000-8000-000000000005
+status: experimental
+logsource:
+    product: windows
+detection:
+    selection:
+        message|contains: 'vssadmin delete shadows'
+    condition: selection
+level: critical

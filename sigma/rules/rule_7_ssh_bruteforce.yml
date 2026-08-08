@@ -1,0 +1,11 @@
+title: Linux SSH Brute Force Authentication Failure
+id: a1b2c3d4-0007-4000-8000-000000000007
+status: experimental
+logsource:
+    product: linux
+    service: auth
+detection:
+    selection:
+        message|contains: 'Failed password for'
+    condition: selection
+level: high

@@ -1,0 +1,13 @@
+title: PowerShell Web Download Executed
+id: a1b2c3d4-0003-4000-8000-000000000003
+status: experimental
+logsource:
+    product: windows
+detection:
+    selection:
+        message|contains:
+            - 'Invoke-WebRequest'
+            - 'Net.WebClient'
+            - 'Start-BitsTransfer'
+    condition: selection
+level: high

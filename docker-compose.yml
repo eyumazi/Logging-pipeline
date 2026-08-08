@@ -1,0 +1,87 @@
+version: '3.8'
+
+networks:
+  monitoring_net:
+    driver: bridge
+
+volumes:
+  vmlogs_data:
+  generated_rules:
+
+services:
+  # 1. Sigma Rules Auto-Converter Engine
+  sigma-converter:
+    build:
+      context: ./sigma/converter
+    volumes:
+      - ./sigma/rules:/app/rules
+      - generated_rules:/out
+    restart: "no"
+
+  # 2. Centralized VictoriaLogs Storage
+  victorialogs:
+    image: victoriametrics/victoria-logs:v0.10.0
+    container_name: victorialogs
+    ports:
+      - "9428:9428"
+    volumes:
+      - vmlogs_data:/vlogs-data
+    command:
+      - "-storageDataPath=/vlogs-data"
+      - "-httpListenAddr=:9428"
+    networks:
+      - monitoring_net
+
+  # 3. Fluentd Normalization Engine
+  fluentd:
+    build:
+      context: ./fluentd
+    container_name: fluentd
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    environment:
+      - FLUENTD_CONF=fluent.conf
+    depends_on:
+      - victorialogs
+    networks:
+      - monitoring_net
+
+  # 4. VMAlert Detection Engine
+  vmalert:
+    image: victoriametrics/vmalert:v1.96.0
+    container_name: vmalert
+    ports:
+      - "8880:8880"
+    volumes:
+      - ./vmalert/config.yml:/etc/vmalert/config.yml
+      - generated_rules:/etc/vmalert/generated_rules
+    depends_on:
+      sigma-converter:
+        condition: service_completed_successfully
+      victorialogs:
+        condition: service_started
+    command:
+      - "-config=/etc/vmalert/config.yml"
+      - "-datasource.url=http://victorialogs:9428"
+      - "-notifier.suppressOneTimeWithSinks"
+    networks:
+      - monitoring_net
+
+  # 5. Grafana Dashboard & Visualization
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - victorialogs
+      - vmalert
+    networks:
+      - monitoring_net

@@ -1,0 +1,11 @@
+title: Multiple Failed Windows Logins
+id: a1b2c3d4-0001-4000-8000-000000000001
+status: experimental
+logsource:
+    product: windows
+    service: security
+detection:
+    selection:
+        event_id: '4625'
+    condition: selection
+level: high

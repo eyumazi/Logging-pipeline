@@ -1,0 +1,13 @@
+title: System Information Discovery Commands
+id: a1b2c3d4-0002-4000-8000-000000000002
+status: experimental
+logsource:
+    category: process_creation
+detection:
+    selection:
+        message|contains:
+            - 'whoami'
+            - 'net group'
+            - 'ipconfig /all'
+    condition: selection
+level: medium

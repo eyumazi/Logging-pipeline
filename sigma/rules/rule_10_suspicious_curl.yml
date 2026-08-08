@@ -1,0 +1,10 @@
+title: Linux Curl Execution to External Endpoint
+id: a1b2c3d4-0010-4000-8000-000000000010
+status: experimental
+logsource:
+    product: linux
+detection:
+    selection:
+        message|contains: 'curl http'
+    condition: selection
+level: low

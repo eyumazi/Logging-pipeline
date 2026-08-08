@@ -1,0 +1,11 @@
+title: User Added to Local Administrators
+id: a1b2c3d4-0008-4000-8000-000000000008
+status: experimental
+logsource:
+    product: windows
+    service: security
+detection:
+    selection:
+        event_id: '4728'
+    condition: selection
+level: high

@@ -1,0 +1,12 @@
+title: Unauthorized Sudo Command Execution
+id: a1b2c3d4-0004-4000-8000-000000000004
+status: experimental
+logsource:
+    product: linux
+    service: auth
+detection:
+    selection:
+        message|contains: 'COMMAND='
+        message|contains: 'sudo'
+    condition: selection
+level: medium

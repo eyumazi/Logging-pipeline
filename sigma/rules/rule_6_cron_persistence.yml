@@ -1,0 +1,10 @@
+title: Cron Job Modification for Persistence
+id: a1b2c3d4-0006-4000-8000-000000000006
+status: experimental
+logsource:
+    product: linux
+detection:
+    selection:
+        message|contains: 'crontab -e'
+    condition: selection
+level: medium
