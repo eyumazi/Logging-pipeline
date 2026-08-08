@@ -20,7 +20,7 @@ services:
 
   # 2. Centralized VictoriaLogs Storage
   victorialogs:
-    image: victoriametrics/victoria-logs:v0.10.0
+    image: victoriametrics/victoria-logs:latest
     container_name: victorialogs
     ports:
       - "9428:9428"
