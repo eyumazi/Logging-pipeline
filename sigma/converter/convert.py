@@ -1,77 +1,313 @@
 import os
-import yaml
 import glob
+import yaml
+
 
 RULES_DIR = "/app/rules"
-OUTPUT_FILE = "/out/vmalert_rules.yml"
+OUTPUT_FILE = "/vmalert/generated_rules/vmalert_rules.yml"
+
+
+def quote_logsqli_value(value):
+    """
+    Safely quote a value for LogsQL.
+    """
+    value = str(value)
+    value = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{value}"'
+
+
+def build_contains_filter(field, value):
+    """
+    Convert Sigma field|contains into a VictoriaLogs filter.
+    """
+    if isinstance(value, list):
+        filters = []
+
+        for item in value:
+            filters.append(
+                f'{field}:{quote_logsqli_value(item)}'
+            )
+
+        return "(" + " OR ".join(filters) + ")"
+
+    return f'{field}:{quote_logsqli_value(value)}'
+
+
+def build_selection(selection):
+    """
+    Convert one Sigma selection dictionary into LogsQL.
+    """
+
+    if not isinstance(selection, dict):
+        return "*"
+
+    filters = []
+
+    for key, value in selection.items():
+
+        # event_id
+        if key == "event_id":
+            if isinstance(value, list):
+                values = [
+                    f'event_id:={quote_logsqli_value(v)}'
+                    for v in value
+                ]
+
+                filters.append(
+                    "(" + " OR ".join(values) + ")"
+                )
+
+            else:
+                filters.append(
+                    f'event_id:={quote_logsqli_value(value)}'
+                )
+
+        # message|contains
+        elif key == "message|contains":
+            filters.append(
+                build_contains_filter("message", value)
+            )
+
+        # Generic |contains support
+        elif "|contains" in key:
+            field = key.split("|", 1)[0]
+
+            filters.append(
+                build_contains_filter(field, value)
+            )
+
+        # Generic exact field
+        else:
+            if isinstance(value, list):
+                values = [
+                    f'{key}:={quote_logsqli_value(v)}'
+                    for v in value
+                ]
+
+                filters.append(
+                    "(" + " OR ".join(values) + ")"
+                )
+
+            else:
+                filters.append(
+                    f'{key}:={quote_logsqli_value(value)}'
+                )
+
+    if not filters:
+        return "*"
+
+    return " AND ".join(filters)
+
+
+def build_condition(detection):
+    """
+    Convert Sigma detection selections + condition
+    into LogsQL.
+    """
+
+    condition = detection.get("condition", "selection")
+
+    selections = {
+        key: value
+        for key, value in detection.items()
+        if key != "condition"
+    }
+
+    # Simple condition:
+    # condition: selection
+    if condition == "selection":
+        selection = selections.get("selection", {})
+
+        return build_selection(selection)
+
+    # Handle:
+    # selection1 and selection2
+    if " and " in condition.lower():
+
+        parts = [
+            part.strip()
+            for part in condition.lower().split(" and ")
+        ]
+
+        expressions = []
+
+        for part in parts:
+            original_key = next(
+                (
+                    key for key in selections
+                    if key.lower() == part
+                ),
+                None
+            )
+
+            if original_key:
+                expressions.append(
+                    build_selection(selections[original_key])
+                )
+
+        if expressions:
+            return " AND ".join(expressions)
+
+    # Handle:
+    # selection1 or selection2
+    if " or " in condition.lower():
+
+        parts = [
+            part.strip()
+            for part in condition.lower().split(" or ")
+        ]
+
+        expressions = []
+
+        for part in parts:
+            original_key = next(
+                (
+                    key for key in selections
+                    if key.lower() == part
+                ),
+                None
+            )
+
+            if original_key:
+                expressions.append(
+                    build_selection(selections[original_key])
+                )
+
+        if expressions:
+            return "(" + " OR ".join(expressions) + ")"
+
+    raise ValueError(
+        f"Unsupported Sigma condition: {condition}"
+    )
+
 
 def parse_sigma_rule(file_path):
-    with open(file_path, 'r', encoding='utf-8') as f:
+
+    with open(file_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
-    rule_id = data.get('id', 'unknown')
-    title = data.get('title', 'Unnamed Rule')
-    level = data.get('level', 'info')
-    
-    detection = data.get('detection', {})
-    selection = detection.get('selection', {})
-    
-    # Build LogsQL condition
-    logsql_parts = []
-    
-    if isinstance(selection, dict):
-        for key, val in selection.items():
-            if 'event_id' in key:
-                logsql_parts.append(f'event_id:="{val}"')
-            elif 'message|contains' in key:
-                if isinstance(val, list):
-                    or_terms = ' OR '.join([f'message:"{term}"' for term in val])
-                    logsql_parts.append(f'({or_terms})')
-                else:
-                    logsql_parts.append(f'message:"{val}"')
-    
-    logsql_query = " AND ".join(logsql_parts) if logsql_parts else '*'
-    
-    # Wrap in VictoriaLogs count query for VMAlert
-    query = f'count_over_time(_time:5m {logsql_query}) > 0'
-    
+    if not isinstance(data, dict):
+        raise ValueError("Sigma rule is not a YAML mapping")
+
+    rule_id = data.get("id", "unknown")
+    title = data.get("title", "Unnamed Rule")
+    level = data.get("level", "info")
+
+    detection = data.get("detection", {})
+
+    if not detection:
+        raise ValueError("Missing detection section")
+
+    # Convert Sigma detection into LogsQL
+    filter_expression = build_condition(detection)
+
+    # vmalert + VictoriaLogs requires a stats result
+    query = (
+        f'{filter_expression} '
+        f'| stats count() as matches '
+        f'| filter matches:>0'
+    )
+
+    alert_name = (
+        title
+        .replace(" ", "_")
+        .replace("-", "_")
+    )
+
     return {
-        'alert': title.replace(' ', '_'),
-        'expr': query,
-        'for': '0m',
-        'labels': {
-            'severity': level,
-            'sigma_id': rule_id
+        "alert": alert_name,
+        "expr": query,
+        "for": "0m",
+
+        "labels": {
+            "severity": level,
+            "sigma_id": rule_id
         },
-        'annotations': {
-            'summary': title,
-            'description': f'Sigma detection rule triggered: {title}'
+
+        "annotations": {
+            "summary": title,
+            "description": (
+                f"Sigma detection rule triggered: {title}"
+            )
         }
     }
 
+
 def generate_vmalert_config():
+
     rules = []
-    for filepath in glob.glob(os.path.join(RULES_DIR, "*.yml")):
+
+    # Read every individual .yml/.yaml file
+    files = (
+        glob.glob(os.path.join(RULES_DIR, "*.yml"))
+        + glob.glob(os.path.join(RULES_DIR, "*.yaml"))
+    )
+
+    if not files:
+        print(f"No Sigma rules found in {RULES_DIR}")
+        return
+
+    for filepath in sorted(files):
+
         try:
             rule = parse_sigma_rule(filepath)
             rules.append(rule)
-            print(f"Converted: {os.path.basename(filepath)}")
+
+            print(
+                f"Converted: {os.path.basename(filepath)}"
+            )
+
         except Exception as e:
-            print(f"Failed to parse {filepath}: {e}")
+
+            print(
+                f"Failed to parse "
+                f"{os.path.basename(filepath)}: {e}"
+            )
 
     vm_config = {
-        'groups': [
+        "groups": [
             {
-                'name': 'sigma_rules_group',
-                'rules': rules
+                "name": "sigma_rules_group",
+
+                # IMPORTANT:
+                # These expressions are LogsQL,
+                # not PromQL/MetricsQL.
+                "type": "vlogs",
+
+                # Evaluate every 10 seconds.
+                # vmalert automatically applies this
+                # interval as the time window.
+                "interval": "10s",
+
+                "rules": rules
             }
         ]
     }
 
-    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        yaml.dump(vm_config, f, default_flow_style=False)
-    print(f"Successfully generated {len(rules)} VMAlert rules at {OUTPUT_FILE}")
+    os.makedirs(
+        os.path.dirname(OUTPUT_FILE),
+        exist_ok=True
+    )
+
+    with open(
+        OUTPUT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        yaml.dump(
+            vm_config,
+            f,
+            default_flow_style=False,
+            sort_keys=False
+        )
+
+    print(
+        f"\nSuccessfully generated "
+        f"{len(rules)} VMAlert rules at "
+        f"{OUTPUT_FILE}"
+    )
+
 
 if __name__ == "__main__":
     generate_vmalert_config()
