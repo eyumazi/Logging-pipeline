@@ -15,7 +15,7 @@ services:
       context: ./sigma/converter
     volumes:
       - ./sigma/rules:/app/rules
-      - generated_rules:/out
+      - generated_rules:/vmalert/generated_rules
     restart: "no"
 
   # 2. Centralized VictoriaLogs Storage
@@ -49,21 +49,22 @@ services:
     networks:
       - monitoring_net
 
+  # 4. VMAlert Detection Engine
 # 4. VMAlert Detection Engine
   vmalert:
-    image: victoriametrics/vmalert:v1.96.0
+    image: victoriametrics/vmalert:latest
     container_name: vmalert
     ports:
       - "8880:8880"
     volumes:
-      - generated_rules:/etc/vmalert/generated_rules
+      - generated_rules:/vmalert/generated_rules
     depends_on:
       sigma-converter:
         condition: service_completed_successfully
       victorialogs:
         condition: service_started
     command:
-      - "-rule=vmalert/generated_rules/vmalert_rules.yml"
+      - "-rule=/vmalert/generated_rules/vmalert_rules.yml"
       - "-datasource.url=http://victorialogs:9428"
       - "-notifier.blackhole=true"
     networks:

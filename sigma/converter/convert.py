@@ -198,10 +198,10 @@ def parse_sigma_rule(file_path):
     if not detection:
         raise ValueError("Missing detection section")
 
-    # Convert Sigma detection into LogsQL
+    # Convert Sigma detection into raw LogsQL
     filter_expression = build_condition(detection)
 
-    # vmalert + VictoriaLogs requires a stats result
+    # Raw LogsQL pipeline without logs(...) wrapper
     query = (
         f'{filter_expression} '
         f'| stats count() as matches '
@@ -268,17 +268,10 @@ def generate_vmalert_config():
         "groups": [
             {
                 "name": "sigma_rules_group",
-
-                # IMPORTANT:
-                # These expressions are LogsQL,
-                # not PromQL/MetricsQL.
+                # Explicitly set type to vlogs for native VictoriaLogs parsing
                 "type": "vlogs",
-
                 # Evaluate every 10 seconds.
-                # vmalert automatically applies this
-                # interval as the time window.
                 "interval": "10s",
-
                 "rules": rules
             }
         ]
