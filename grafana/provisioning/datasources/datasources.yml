@@ -9,8 +9,8 @@ datasources:
     jsonData:
       maxLines: 1000
 
-  - name: Prometheus-VMAlert
+  - name: VictoriaMetrics
     type: prometheus
     access: proxy
-    url: http://vmalert:8880
+    url: http://victoriametrics:8428
     isDefault: false

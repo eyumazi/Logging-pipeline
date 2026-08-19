@@ -1,0 +1,100 @@
+groups:
+- name: sigma_rules_group
+  type: vlogs
+  interval: 10s
+  rules:
+  - alert: Linux_Curl_Execution_to_External_Endpoint
+    expr: message:"curl http" | stats count() as matches | filter matches:>0
+    for: 0m
+    labels:
+      severity: low
+      sigma_id: a1b2c3d4-0010-4000-8000-000000000010
+    annotations:
+      summary: Linux Curl Execution to External Endpoint
+      description: 'Sigma detection rule triggered: Linux Curl Execution to External
+        Endpoint'
+  - alert: Multiple_Failed_Windows_Logins
+    expr: event_id:="4625" | stats count() as matches | filter matches:>0
+    for: 0m
+    labels:
+      severity: high
+      sigma_id: a1b2c3d4-0001-4000-8000-000000000001
+    annotations:
+      summary: Multiple Failed Windows Logins
+      description: 'Sigma detection rule triggered: Multiple Failed Windows Logins'
+  - alert: System_Information_Discovery_Commands
+    expr: (message:"whoami" OR message:"net group" OR message:"ipconfig /all") | stats
+      count() as matches | filter matches:>0
+    for: 0m
+    labels:
+      severity: medium
+      sigma_id: a1b2c3d4-0002-4000-8000-000000000002
+    annotations:
+      summary: System Information Discovery Commands
+      description: 'Sigma detection rule triggered: System Information Discovery Commands'
+  - alert: PowerShell_Web_Download_Executed
+    expr: (message:"Invoke-WebRequest" OR message:"Net.WebClient" OR message:"Start-BitsTransfer")
+      | stats count() as matches | filter matches:>0
+    for: 0m
+    labels:
+      severity: high
+      sigma_id: a1b2c3d4-0003-4000-8000-000000000003
+    annotations:
+      summary: PowerShell Web Download Executed
+      description: 'Sigma detection rule triggered: PowerShell Web Download Executed'
+  - alert: Unauthorized_Sudo_Command_Execution
+    expr: message:"COMMAND=" AND message:"sudo" | stats count() as matches | filter
+      matches:>0
+    for: 0m
+    labels:
+      severity: medium
+      sigma_id: a1b2c3d4-0004-4000-8000-000000000004
+    annotations:
+      summary: Unauthorized Sudo Command Execution
+      description: 'Sigma detection rule triggered: Unauthorized Sudo Command Execution'
+  - alert: Shadow_Copies_Deletion_via_Vssadmin
+    expr: message:"vssadmin delete shadows" | stats count() as matches | filter matches:>0
+    for: 0m
+    labels:
+      severity: critical
+      sigma_id: a1b2c3d4-0005-4000-8000-000000000005
+    annotations:
+      summary: Shadow Copies Deletion via Vssadmin
+      description: 'Sigma detection rule triggered: Shadow Copies Deletion via Vssadmin'
+  - alert: Cron_Job_Modification_for_Persistence
+    expr: message:"crontab -e" | stats count() as matches | filter matches:>0
+    for: 0m
+    labels:
+      severity: medium
+      sigma_id: a1b2c3d4-0006-4000-8000-000000000006
+    annotations:
+      summary: Cron Job Modification for Persistence
+      description: 'Sigma detection rule triggered: Cron Job Modification for Persistence'
+  - alert: Linux_SSH_Brute_Force_Authentication_Failure
+    expr: message:"Failed password for" | stats count() as matches | filter matches:>0
+    for: 0m
+    labels:
+      severity: high
+      sigma_id: a1b2c3d4-0007-4000-8000-000000000007
+    annotations:
+      summary: Linux SSH Brute Force Authentication Failure
+      description: 'Sigma detection rule triggered: Linux SSH Brute Force Authentication
+        Failure'
+  - alert: User_Added_to_Local_Administrators
+    expr: event_id:="4728" | stats count() as matches | filter matches:>0
+    for: 0m
+    labels:
+      severity: high
+      sigma_id: a1b2c3d4-0008-4000-8000-000000000008
+    annotations:
+      summary: User Added to Local Administrators
+      description: 'Sigma detection rule triggered: User Added to Local Administrators'
+  - alert: Security_Event_Log_Was_Cleared
+    expr: event_id:="1102" | stats count() as matches | filter matches:>0
+    for: 0m
+    labels:
+      severity: critical
+      sigma_id: a1b2c3d4-0009-4000-8000-000000000009
+    annotations:
+      summary: Security Event Log Was Cleared
+      description: 'Sigma detection rule triggered: Security Event Log Was Cleared'

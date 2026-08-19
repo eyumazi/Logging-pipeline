@@ -6,7 +6,6 @@ networks:
 
 volumes:
   vmlogs_data:
-  generated_rules:
 
 services:
   # 1. Sigma Rules Auto-Converter Engine
@@ -15,7 +14,7 @@ services:
       context: ./sigma/converter
     volumes:
       - ./sigma/rules:/app/rules
-      - generated_rules:/vmalert/generated_rules
+      - ./vmalert/generated_rules:/vmalert/generated_rules
     restart: "no"
 
   # 2. Centralized VictoriaLogs Storage
@@ -49,28 +48,39 @@ services:
     networks:
       - monitoring_net
 
-  # 4. VMAlert Detection Engine
-# 4. VMAlert Detection Engine
+  # 4. Victoria Metrics for Metrics Collection
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: victoriametrics
+    ports:
+      - "8428:8428"
+    networks:
+      - monitoring_net
+
+  # 5. VMAlert Detection Engine
   vmalert:
     image: victoriametrics/vmalert:latest
     container_name: vmalert
     ports:
       - "8880:8880"
     volumes:
-      - generated_rules:/vmalert/generated_rules
+      - ./vmalert/generated_rules:/vmalert/generated_rules
     depends_on:
       sigma-converter:
         condition: service_completed_successfully
       victorialogs:
         condition: service_started
+      victoriametrics:
+        condition: service_started
     command:
       - "-rule=/vmalert/generated_rules/vmalert_rules.yml"
       - "-datasource.url=http://victorialogs:9428"
+      - "-remoteWrite.url=http://victoriametrics:8428"
       - "-notifier.blackhole=true"
     networks:
       - monitoring_net
 
-  # 5. Grafana Dashboard & Visualization
+  # 6. Grafana Dashboard & Visualization
   grafana:
     image: grafana/grafana:10.2.0
     container_name: grafana
@@ -78,10 +88,18 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SMTP_ENABLED=true
+      - GF_SMTP_HOST=smtp.gmail.com:587
+      - GF_SMTP_USER=ey.mazi233@gmail.com
+      - GF_SMTP_PASSWORD=ewppkakasilvnkmn
+      - GF_SMTP_FROM_ADDRESS=ey.mazi233@gmail.com
+      - GF_SMTP_FROM_NAME=Security Pipeline Alerts
+      - GF_SMTP_SKIP_VERIFY=true
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
     depends_on:
       - victorialogs
+      - victoriametrics
       - vmalert
     networks:
       - monitoring_net
