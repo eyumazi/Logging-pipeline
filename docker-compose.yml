@@ -74,9 +74,11 @@ services:
         condition: service_started
     command:
       - "-rule=/vmalert/generated_rules/vmalert_rules.yml"
+      - "-rule.defaultRuleType=vlogs"
       - "-datasource.url=http://victorialogs:9428"
       - "-remoteWrite.url=http://victoriametrics:8428"
       - "-notifier.blackhole=true"
+      - "-evaluationInterval=10s"
     networks:
       - monitoring_net
 
@@ -101,5 +103,22 @@ services:
       - victorialogs
       - victoriametrics
       - vmalert
+    networks:
+      - monitoring_net
+
+  # 7. React Vite Custom Operations Dashboard
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: logging-dashboard
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_VICTORIALOGS_URL=http://localhost:9428
+      - VITE_SUPABASE_URL=https://your-supabase-project.supabase.co
+      - VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+    depends_on:
+      - victorialogs
     networks:
       - monitoring_net
